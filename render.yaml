@@ -1,235 +1,77 @@
 import os
 import subprocess
 import sys
-import time
 import logging
 from datetime import datetime
 
-# ============================================
-# 🔥 تصحيح مشكلة imghdr في Python 3.11+
-# ============================================
-if sys.version_info >= (3, 11):
-    import types
-    if 'imghdr' not in sys.modules:
-        fake_imghdr = types.ModuleType('imghdr')
-        fake_imghdr.what = lambda file, h=None: None
-        sys.modules['imghdr'] = fake_imghdr
-        print("✅ تم تصحيح وحدة imghdr")
-
-# ============================================
-# ⚙️ إعدادات التسجيل
-# ============================================
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
 logger = logging.getLogger(__name__)
 
-# ============================================
-# 🛠️ الدوال الأساسية
-# ============================================
+
 def run(cmd):
-    """تنفيذ أمر في الطرفية مع تسجيل الإخراج"""
     print(f"⌭ تنفيذ: {cmd}")
-    try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(f"⚠️ تحذير: {result.stderr}")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"❌ فشل تنفيذ الأمر: {e}")
-        return False
+    subprocess.run(cmd, shell=True, check=True)
 
-def check_environment():
-    """التحقق من المتغيرات البيئية المطلوبة"""
-    required_vars = ["BOT_TOKEN", "API_ID", "API_HASH"]
-    missing_vars = []
-    
-    for var in required_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        print(f"⚠️ المتغيرات المفقودة: {', '.join(missing_vars)}")
-        print("⌭ سيتم استخدام القيم الافتراضية من render.yaml")
-        return False
-    return True
 
-def setup_directories():
-    """إنشاء المجلدات المطلوبة"""
-    folders = [
+def fix_imghdr():
+    if sys.version_info >= (3, 11):
+        import types
+
+        if "imghdr" not in sys.modules:
+            fake_imghdr = types.ModuleType("imghdr")
+            fake_imghdr.what = lambda file, h=None: None
+            sys.modules["imghdr"] = fake_imghdr
+            print("✅ تم إصلاح imghdr")
+
+
+def install_requirements():
+    if os.path.exists("requirements.txt"):
+        print("⌭ تثبيت المتطلبات...")
+        run("pip install -U -r requirements.txt")
+
+
+def create_dirs():
+    for folder in [
         "data",
-        "logs", 
-        "template",
-        "accounts",
+        "database",
+        "logs",
         "sessions",
-        "backups"
+        "temp"
+    ]:
+        os.makedirs(folder, exist_ok=True)
+
+
+def start():
+    print("=" * 50)
+    print("🔥 تشغيل alrys على Render")
+    print(datetime.now())
+    print("=" * 50)
+
+    files = [
+        "main.py",
+        "yeman.py",
+        "alrys.py",
+        "bot.py"
     ]
-    
-    for folder in folders:
-        try:
-            os.makedirs(folder, exist_ok=True)
-            logger.info(f"✅ تم إنشاء مجلد: {folder}")
-        except Exception as e:
-            logger.error(f"❌ فشل إنشاء مجلد {folder}: {e}")
 
-def start_main_bot():
-    """تشغيل البوت الرئيسي"""
-    print("=" * 60)
-    print("🚀 بدء تشغيل بوت alrys")
-    print("=" * 60)
-    
-    # التحقق من وجود الملفات الرئيسية
-    main_files = ["main.py", "bot.py", "alrys.py"]
-    found_file = None
-    
-    for file in main_files:
+    for file in files:
         if os.path.exists(file):
-            found_file = file
-            break
-    
-    if found_file:
-        print(f"✅ تم العثور على {found_file}")
-        print(f"⌭ تشغيل {found_file}...")
-        
-        # تشغيل الملف مع المتغيرات البيئية
-        os.environ["PYTHONUNBUFFERED"] = "1"
-        return run(f"python3 {found_file}")
-    else:
-        print("❌ لم يتم العثور على ملف التشغيل الرئيسي")
-        return create_temp_bot()
+            print(f"✅ تشغيل: {file}")
+            run(f"python3 {file}")
+            return
 
-def create_temp_bot():
-    """إنشاء بوت مؤقت في حالة عدم وجود الملفات"""
-    print("⌭ إنشاء بوت مؤقت...")
-    
-    temp_code = '''
-import sys
-import types
-import os
-from telethon import TelegramClient, events
+    print("❌ لم يتم العثور على ملف التشغيل")
+    print("الملفات الموجودة:")
+    print(os.listdir())
+    sys.exit(1)
 
-# تصحيح imghdr
-if sys.version_info >= (3, 11):
-    if 'imghdr' not in sys.modules:
-        fake_imghdr = types.ModuleType('imghdr')
-        fake_imghdr.what = lambda file, h=None: None
-        sys.modules['imghdr'] = fake_imghdr
 
-# قراءة المتغيرات البيئية
-API_ID = int(os.getenv("API_ID", 25978936))
-API_HASH = os.getenv("API_HASH", "cf754dc655df0e7deff36732dbfff074")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-if not BOT_TOKEN:
-    print("❌ BOT_TOKEN غير موجود!")
-    exit(1)
-
-# إنشاء العميل
-print("⌭ جاري الاتصال بـ Telegram...")
-client = TelegramClient('alrys_bot', API_ID, API_HASH)
-
-@client.on(events.NewMessage(pattern='/start'))
-async def start_handler(event):
-    await event.reply('''
-🚀 **مرحباً بك في بوت alrys!**
-
-📌 **الأوامر المتاحة:**
-/start - بدء التشغيل
-/help - عرض المساعدة
-/ping - اختبار الاتصال
-/status - حالة البوت
-/time - عرض الوقت
-
-🔹 **البوت يعمل بكفاءة عالية**
-''')
-
-@client.on(events.NewMessage(pattern='/help'))
-async def help_handler(event):
-    await event.reply('''
-📋 **قائمة الأوامر:**
-
-🔹 **الأساسية:**
-/start - بدء التشغيل
-/help - عرض المساعدة
-/ping - اختبار الاتصال
-/status - حالة البوت
-/time - عرض الوقت
-
-🔹 **المطور:**
-/eval <كود> - تنفيذ كود
-/exec <أمر> - تنفيذ أمر
-''')
-
-@client.on(events.NewMessage(pattern='/ping'))
-async def ping_handler(event):
-    await event.reply("🏓 **Pong!**")
-
-@client.on(events.NewMessage(pattern='/status'))
-async def status_handler(event):
-    await event.reply("✅ **البوت يعمل بنجاح!**")
-
-@client.on(events.NewMessage(pattern='/time'))
-async def time_handler(event):
-    from datetime import datetime
-    await event.reply(f"🕐 **الوقت الحالي:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-@client.on(events.NewMessage(pattern='/eval (.+)'))
-async def eval_handler(event):
-    if str(event.sender_id) == os.getenv("OWNER_ID", "0"):
-        try:
-            code = event.pattern_match.group(1)
-            result = eval(code)
-            await event.reply(f"📊 **النتيجة:**\\n```\\n{result}\\n```")
-        except Exception as e:
-            await event.reply(f"❌ **خطأ:** {e}")
-
-@client.on(events.NewMessage)
-async def echo_all(event):
-    if event.is_private:
-        await event.reply(f"📨 **تم استلام:** {event.text}")
-
-print("✅ البوت يعمل...")
-client.start(bot_token=BOT_TOKEN)
-client.run_until_disconnected()
-'''
-    
-    with open("temp_alrys.py", "w") as f:
-        f.write(temp_code)
-    
-    print("✅ تم إنشاء البوت المؤقت")
-    return run("python3 temp_alrys.py")
-
-# ============================================
-# 🚀 التشغيل الرئيسي
-# ============================================
 if __name__ == "__main__":
-    print("=" * 60)
-    print("🔥 بوت alrys Factory")
-    print(f"📅 التاريخ: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🐍 Python: {sys.version}")
-    print("=" * 60)
-    
-    try:
-        # 1. إعداد المجلدات
-        setup_directories()
-        
-        # 2. التحقق من المتغيرات البيئية
-        check_environment()
-        
-        # 3. بدء البوت
-        success = start_main_bot()
-        
-        if not success:
-            print("❌ فشل تشغيل البوت")
-            sys.exit(1)
-            
-    except KeyboardInterrupt:
-        print("\n⏹️ تم إيقاف البوت بواسطة المستخدم")
-        sys.exit(0)
-    except Exception as e:
-        logger.error(f"❌ خطأ فادح: {e}")
-        print(f"❌ حدث خطأ: {e}")
-        sys.exit(1)
+    fix_imghdr()
+    create_dirs()
+    install_requirements()
+    start()
